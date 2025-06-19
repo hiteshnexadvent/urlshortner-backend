@@ -6,7 +6,7 @@ import { nanoid } from 'nanoid';
 import session from 'express-session';
 import dotenv from 'dotenv';
 import urlMong from './models/Url_Mong.js';
-import { loginUser, logoutUser, registerUser } from './controllers/userAuthentication.js';
+import { fetchqr, loginUser, logoutUser, postqrcode, registerUser } from './controllers/userAuthentication.js';
 import { registeredvalidator } from './validation/validation.js';
 import { validationResult } from 'express-validator';
 
@@ -62,6 +62,7 @@ mongoose.connect(process.env.MONGODB_URI)
     .catch(() => console.log('Error Occured'))
 
 
+// ------------------------------ shorten url 
 
 app.post('/api/short',async (req,res) => {
     
@@ -134,6 +135,9 @@ app.post('/login', loginUser);
 
 app.get('/logout', logoutUser);
 
+app.post('/qrscan', postqrcode);
+
+app.get('/fetchqr', fetchqr);
 
 
 

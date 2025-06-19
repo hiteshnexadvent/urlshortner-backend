@@ -1,5 +1,7 @@
 import userMong from '../models/User_Mong.js';
+import qrMong from '../models/Qr_Mong.js';
 import bcrypt from 'bcrypt';
+import qrcode from 'qrcode';
 import { validationResult } from 'express-validator';
 
 export const registerUser = async (req, res) => {
@@ -87,3 +89,66 @@ export const logoutUser = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error during logout' });
   }
 };
+
+export const postqrcode=async (req,res) => {
+  
+  const { url } = req.body;
+
+  if (!url || url.trim() === "") {
+      return res.status(400).json({ error: 'URL is required' });
+  }
+
+  if (!req.session.userEmail) {
+              const today = new Date().toDateString();
+              if (!req.session.lastGeneratedDate || req.session.lastGeneratedDate !== today) {
+                  req.session.lastGeneratedDate = today;
+                  req.session.urlCount = 1;
+              } else {
+                  req.session.urlCount = (req.session.urlCount || 0) + 1;
+              }
+  
+              if (req.session.urlCount > 5) {
+                  return res.status(429).json({ message: 'Daily limit reached (5 QR codes). Please login to generate unlimited QR codes.' });
+              }
+          }
+  
+
+  try {
+
+    const qrImage = await qrcode.toDataURL(url);
+    const newEntry = new qrMong({
+      url, qrImage, userEmail: req.session.userEmail?.email || null
+    });
+
+    await newEntry.save();
+    return res.json({ qrImage });
+
+  } catch (error) {
+    
+    console.log('Qr generation error', error);
+    return res.status(500).json({ error: 'QR generation failed' });
+
+  }
+
+}
+
+// ------------------------ my qr
+
+export const fetchqr = async (req, res) => {
+  
+  try {
+    if (!req.session.userEmail) {
+          return res.status(401).json({ message: 'Please login to view your URLs.' });
+    }
+
+    const userQr = await qrMong.find({ userEmail: req.session.userEmail?.email });
+
+    return res.status(200).json({ qr: userQr });
+
+  }
+
+  catch (err) {
+     return res.status(500).json({ message: 'Error while fetching Qr' });
+  }
+
+}
