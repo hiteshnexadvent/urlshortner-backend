@@ -6,9 +6,8 @@ import { nanoid } from 'nanoid';
 import session from 'express-session';
 import dotenv from 'dotenv';
 import urlMong from './models/Url_Mong.js';
-import { fetchqr, loginUser, logoutUser, postqrcode, registerUser } from './controllers/userAuthentication.js';
+import { checkSession, fetchqr, loginUser, logoutUser, postqrcode, registerUser, resendOtp, resetPassword, sendMaill, verifyOtp } from './controllers/userAuthentication.js';
 import { registeredvalidator } from './validation/validation.js';
-import { validationResult } from 'express-validator';
 
 dotenv.config();
 
@@ -135,9 +134,19 @@ app.post('/login', loginUser);
 
 app.get('/logout', logoutUser);
 
+app.get('/check-session', checkSession);
+
 app.post('/qrscan', postqrcode);
 
 app.get('/fetchqr', fetchqr);
+
+app.post('/send-mail', sendMaill);
+
+app.post('/verify-otp', verifyOtp);
+
+app.post('/reset-pass', resetPassword);
+
+app.post('/resend-otp', resendOtp);
 
 
 

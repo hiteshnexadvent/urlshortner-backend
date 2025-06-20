@@ -1,8 +1,13 @@
+import axios from 'axios';
 import userMong from '../models/User_Mong.js';
 import qrMong from '../models/Qr_Mong.js';
 import bcrypt from 'bcrypt';
 import qrcode from 'qrcode';
 import { validationResult } from 'express-validator';
+import sendMail from '../utils/sendMailOtp.js';
+
+
+// ------------------------ user register
 
 export const registerUser = async (req, res) => {
     
@@ -42,11 +47,24 @@ export const registerUser = async (req, res) => {
 
 }
 
+// ---------------------------- login user
+
 export const loginUser=async (req,res) => {
     
     try {
         
-    const { email, pass } = req.body;
+      const {  captcha,email, pass } = req.body;
+      
+        if (!captcha) return res.status(400).json({ message: "reCAPTCHA required" });
+
+  // Verify with Google
+  const secret = process.env.RECAPTCHA_SECRET_KEY;
+  const verifyURL = `https://www.google.com/recaptcha/api/siteverify?secret=${secret}&response=${captcha}`;
+      
+  const { data } = await axios.post(verifyURL);
+  
+  if (!data.success) return res.status(400).json({ message: "Failed reCAPTCHA verification" });
+
 
     const userr = await userMong.findOne({ email });
 
@@ -76,19 +94,108 @@ export const loginUser=async (req,res) => {
 
 }
 
-export const logoutUser = async (req, res) => {
-  try {
-    req.session.destroy(err => {
-      if (err) {
-        return res.status(400).json({ success: false, message: 'Cannot logout' });
-      }
-      return res.status(200).json({ success: true, message: 'Logout successful' });
-    });
-  } catch (err) {
-    console.log(err.message);
-    res.status(500).json({ success: false, message: 'Server error during logout' });
+// -------------------------- send mail otp
+
+export const sendMaill=async (req,res) => {
+  
+  const { email } = req.body;
+
+  const user = await userMong.findOne({ email });
+
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  req.session.otp = otp;
+  req.session.emailForOtp = email;
+  req.session.otpExpire = Date.now() + 10 * 60 * 1000; 
+
+  await sendMail(email, otp);
+  res.status(200).json({ message: 'OTP sent to email' }); 
+
+}
+
+// ------------------------- verify-otp
+
+export const verifyOtp=async (req,res) => {
+  
+  const { otp } = req.body;
+
+  if (
+    req.session.otp === otp && req.session.otpExpire > Date.now()
+  ) {
+    req.session.otpVerified = true;
+    return res.json({ success: true, message: 'OTP verified' });
+  }
+
+  return res.status(400).json({ message: 'Invalid or expired otp' });
+}
+
+// -------------------------- resend otp
+
+export const resendOtp=async (req,res) => {
+  
+  const { email } = req.body;
+
+  const user = await userMong.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  req.session.otp = otp;
+  req.session.emailForOtp = email;
+  req.session.otpExpire = Date.now() + 10 * 60 * 1000;
+
+  await sendMail(email, otp);
+  res.status(200).json({ message: 'OTP resent to email' });
+
+
+}
+
+
+// ------------------------ reset password
+
+export const resetPassword = async (req, res) => {
+  const { newPass } = req.body;
+
+  if (!newPass || newPass.length < 6) {
+  return res.status(400).json({ message: 'Password must be at least 6 characters' });
+}
+
+
+  if (!req.session.otpVerified || !req.session.emailForOtp) {
+    return res.status(403).json({ message: 'OTP not verified' });
+  }
+
+  const hashedPass = await bcrypt.hash(newPass, 10);
+
+  await userMong.findOneAndUpdate(
+    { email: req.session.emailForOtp },
+    { pass: hashedPass }
+  );
+
+  // Clear OTP session
+  req.session.otp = null;
+  req.session.otpExpire = null;
+  req.session.otpVerified = null;
+  req.session.emailForOtp = null;
+
+  res.json({ success: true, message: 'Password reset successful' });
+};
+
+
+// -------------------------- check session
+
+export const checkSession = async (req, res) => {
+  if (req.session.userEmail) {
+    return res.status(200).json({ loggedIn: true, userId: req.session.userEmail });
+  } else {
+    return res.status(200).json({ loggedIn: false });
   }
 };
+
+
+// ------------------------- post qr
 
 export const postqrcode=async (req,res) => {
   
@@ -152,3 +259,19 @@ export const fetchqr = async (req, res) => {
   }
 
 }
+
+// -------------------------- logout user
+
+export const logoutUser = async (req, res) => {
+  try {
+    req.session.destroy(err => {
+      if (err) {
+        return res.status(400).json({ success: false, message: 'Cannot logout' });
+      }
+      return res.status(200).json({ success: true, message: 'Logout successful' });
+    });
+  } catch (err) {
+    console.log(err.message);
+    res.status(500).json({ success: false, message: 'Server error during logout' });
+  }
+};
