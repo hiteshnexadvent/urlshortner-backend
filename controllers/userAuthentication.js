@@ -53,17 +53,17 @@ export const loginUser=async (req,res) => {
     
     try {
         
-      const {  captcha,email, pass } = req.body;
+      const { email, pass } = req.body;
       
-        if (!captcha) return res.status(400).json({ message: "reCAPTCHA required" });
+  //       if (!captcha) return res.status(400).json({ message: "reCAPTCHA required" });
 
-  // Verify with Google
-  const secret = process.env.RECAPTCHA_SECRET_KEY;
-  const verifyURL = `https://www.google.com/recaptcha/api/siteverify?secret=${secret}&response=${captcha}`;
+  // // Verify with Google
+  // const secret = process.env.RECAPTCHA_SECRET_KEY;
+  // const verifyURL = `https://www.google.com/recaptcha/api/siteverify?secret=${secret}&response=${captcha}`;
       
-  const { data } = await axios.post(verifyURL);
+  // const { data } = await axios.post(verifyURL);
   
-  if (!data.success) return res.status(400).json({ message: "Failed reCAPTCHA verification" });
+  // if (!data.success) return res.status(400).json({ message: "Failed reCAPTCHA verification" });
 
 
     const userr = await userMong.findOne({ email });
