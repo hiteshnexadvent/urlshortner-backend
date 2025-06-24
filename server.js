@@ -35,36 +35,36 @@ app.use(cors({
 
 // --------------------- for live
 
-// app.set('trust proxy', 1)
-
-// app.use(
-//     session({
-//       secret: "nexadvent123", 
-//       resave: false,
-//       saveUninitialized: false,
-//       cookie: { 
-//         sameSite: 'none',
-//         secure: true,
-//         maxAge: 24 * 60 * 60 * 1000,
-//         httpOnly: true
-//       }, 
-//     })
-// );
-  
-// ------------------- for local dev
+app.set('trust proxy', 1)
 
 app.use(
     session({
       secret: "nexadvent123", 
       resave: false,
       saveUninitialized: false,
-      cookie: {
-  sameSite: 'lax',
-  secure: false,
-  httpOnly: true
-        },      
+      cookie: { 
+        sameSite: 'none',
+        secure: true,
+        maxAge: 24 * 60 * 60 * 1000,
+        httpOnly: true
+      }, 
     })
 );
+  
+// ------------------- for local dev
+
+// app.use(
+//     session({
+//       secret: "nexadvent123", 
+//       resave: false,
+//       saveUninitialized: false,
+//       cookie: {
+//   sameSite: 'lax',
+//   secure: false,
+//   httpOnly: true
+//         },      
+//     })
+// );
 
 
 
