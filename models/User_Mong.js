@@ -1,7 +1,18 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
-const userSchema = new mongoose.Schema({ name: { type: String, required: true }, mobile: { type: Number, required: true }, email: { type: String, required: true }, pass: { type: String, required: true } });
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  mobile: { type: Number, required: true },
+  email: { type: String, required: true },
+  pass: { type: String, required: true },
+  plan: {
+    type: String,
+    enum: ["Basic", "Advance", "Premium"],
+    default: "Basic",
+  },
+  subscribedAt: Date,
+});
 
-const userMong = mongoose.model('users',userSchema);
+const userMong = mongoose.model("users", userSchema);
 
 export default userMong;

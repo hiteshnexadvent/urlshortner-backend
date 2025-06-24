@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Login</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #e3f2fd;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    form {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0, 0, 255, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      width: 300px;
+    }
+
+    input[type="email"],
+    input[type="password"] {
+      padding: 10px;
+      border: 1px solid #90caf9;
+      border-radius: 6px;
+      outline: none;
+      font-size: 14px;
+    }
+
+    input:focus {
+      border-color: #2196f3;
+      box-shadow: 0 0 5px rgba(33, 150, 243, 0.4);
+    }
+
+    button {
+      padding: 10px;
+      background-color: #2196f3;
+      color: white;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #1976d2;
+    }
+
+    label {
+      font-weight: 500;
+      color: #0d47a1;
+    }
+  </style>
+
+</head>
+<body>
+
+  <form action="/admin/login" method="post">
+
+    <label for="email">Email:</label>
+    <input type="email" id="email" placeholder="Enter email" name="email" required>
+
+    <label for="pass">Password:</label>
+    <input type="password" id="pass" placeholder="Enter password" name="pass" required>
+
+
+    <button type="submit">Login</button>
+    <a href="/admin/forget-password">Forget Password</a>
+
+    <!-- <a href="/admin/signup">New Admin?</a> -->
+  </form>
+
+</body>
+</html>

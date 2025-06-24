@@ -5,9 +5,17 @@ import cors from 'cors';
 import { nanoid } from 'nanoid';
 import session from 'express-session';
 import dotenv from 'dotenv';
+import path from 'path';
 import urlMong from './models/Url_Mong.js';
-import { checkSession, fetchqr, loginUser, logoutUser, postqrcode, registerUser, resendOtp, resetPassword, sendMaill, verifyOtp } from './controllers/userAuthentication.js';
+import { checkSession, choosePlan, fetchqr, getuserPlan, loginUser, logoutUser, postqrcode, registerUser, resendOtp, resetPassword, sendMaill, verifyOtp } from './controllers/userAuthentication.js';
 import { registeredvalidator } from './validation/validation.js';
+import admin from './routes/admin.js';
+import { fileURLToPath } from 'url';
+import userMong from './models/User_Mong.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 dotenv.config();
 
@@ -16,42 +24,47 @@ app.use(express.static('public'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+app.set("views", path.join(__dirname, "views"));
+app.set('view engine', 'ejs');
+
 
 app.use(cors({
     origin: process.env.BACKEND_URL,
     credentials: true
 }));
 
-app.set('trust proxy', 1)
+// --------------------- for live
 
-app.use(
-    session({
-      secret: "nexadvent123", 
-      resave: false,
-      saveUninitialized: false,
-      cookie: { 
-        sameSite: 'none',
-        secure: true,
-        maxAge: 24 * 60 * 60 * 1000,
-        httpOnly: true
-      }, 
-    })
-);
-  
-// --------- for local dev
+// app.set('trust proxy', 1)
 
 // app.use(
 //     session({
 //       secret: "nexadvent123", 
 //       resave: false,
 //       saveUninitialized: false,
-//       cookie: {
-//   sameSite: 'lax',
-//   secure: false,
-//   httpOnly: true
-//         },      
+//       cookie: { 
+//         sameSite: 'none',
+//         secure: true,
+//         maxAge: 24 * 60 * 60 * 1000,
+//         httpOnly: true
+//       }, 
 //     })
 // );
+  
+// ------------------- for local dev
+
+app.use(
+    session({
+      secret: "nexadvent123", 
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+  sameSite: 'lax',
+  secure: false,
+  httpOnly: true
+        },      
+    })
+);
 
 
 
@@ -64,51 +77,73 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // ------------------------------ shorten url 
 
-app.post('/api/short',async (req,res) => {
-    
-    try {
-        
-        const { originalUrl } = req.body;
+app.post('/api/short', async (req, res) => {
+  try {
+    const { originalUrl } = req.body;
 
-        if (!originalUrl) {
-            return res.status(400).json({ message: 'Url error' });
-        }
-
-        // Guest user limit check
-        
-        if (!req.session.userEmail) {
-            const today = new Date().toDateString();
-            if (!req.session.lastGeneratedDate || req.session.lastGeneratedDate !== today) {
-                req.session.lastGeneratedDate = today;
-                req.session.urlCount = 1;
-            } else {
-                req.session.urlCount = (req.session.urlCount || 0) + 1;
-            }
-
-            if (req.session.urlCount > 5) {
-                return res.status(429).json({ message: 'Daily limit reached (5 URLs). Please login for unlimited access.' });
-            }
-        }
-
-
-        const shortUrl = nanoid(8);
-
-        const url = new urlMong({
-            originalUrl, shortUrl, userEmail: req.session.userEmail?.email || null
-        });
-
-        await url.save();
-        return res.status(200).json({ message: 'Url Generated',url });
-
-    }
-    catch (err) {
-        console.log(err);
-        return res.status(500).json({ message: 'Error Occured while generating url' });
-
+    if (!originalUrl) {
+      return res.status(400).json({ message: 'Url error' });
     }
 
-})
+    let expiresAt;
 
+    // Guest user limit check
+    if (!req.session.userEmail) {
+      const today = new Date().toDateString();
+      if (!req.session.lastGeneratedDate || req.session.lastGeneratedDate !== today) {
+        req.session.lastGeneratedDate = today;
+        req.session.urlCount = 1;
+      } else {
+        req.session.urlCount = (req.session.urlCount || 0) + 1;
+      }
+
+      if (req.session.urlCount > 5) {
+        return res.status(429).json({ message: 'Daily limit reached (5 URLs). Please login for unlimited access.' });
+      }
+
+      // Guest: expire after 5 days
+      expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    }
+
+    // Logged-in user (Basic) limit check
+    if (req.session.userEmail) {
+      const user = await userMong.findOne({ email: req.session.userEmail.email });
+
+      if (user && user.plan === "Basic") {
+        const today = new Date().toDateString();
+        if (!req.session.lastGeneratedDate || req.session.lastGeneratedDate !== today) {
+          req.session.lastGeneratedDate = today;
+          req.session.urlCount = 1;
+        } else {
+          req.session.urlCount = (req.session.urlCount || 0) + 1;
+        }
+
+        if (req.session.urlCount > 5) {
+          return res.status(429).json({ message: 'Daily limit reached for Basic plan (5 URLs). Upgrade for unlimited access.' });
+        }
+
+        // Basic: expire after 5 days
+        expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+      }
+    }
+
+    const shortUrl = nanoid(8);
+
+    const url = new urlMong({
+      originalUrl,
+      shortUrl,
+      userEmail: req.session.userEmail?.email || null,
+      ...(expiresAt && { expiresAt })
+    });
+
+    await url.save();
+    return res.status(200).json({ message: 'Url Generated', url });
+
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: 'Error Occurred while generating URL' });
+  }
+});
 
 app.get('/api/my-urls', async (req, res) => {
     try {
@@ -149,6 +184,10 @@ app.post('/reset-pass', resetPassword);
 
 app.post('/resend-otp', resendOtp);
 
+app.post('/choose-plan', choosePlan);
+
+app.get('/get-user-plan', getuserPlan);
+
 
 
 
@@ -175,6 +214,12 @@ app.get('/:shortUrl',async (req,res) => {
 
     }
 
+})
+
+app.use('/admin', admin);
+
+app.get('/', (req, res) => {
+    res.render('adminLogin');
 })
 
 

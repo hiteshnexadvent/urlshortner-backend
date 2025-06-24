@@ -16,11 +16,11 @@ export const registerUser = async (req, res) => {
   const error = validationResult(req);
 
   if (!error.isEmpty()) {
-            console.log('Validation Error:', error.array());
 
-        return res.status(400).json({ message: error.array()[0].msg });
+      console.log('Validation Error:', error.array());
+      return res.status(400).json({ message: error.array()[0].msg });
         
-        }
+      }
 
     try {
 
@@ -91,6 +91,91 @@ export const loginUser=async (req,res) => {
     catch (err) {
         res.json(err.message);
     }
+
+}
+
+// --------------------------- choose plan
+
+export const choosePlan = async (req, res) => {
+
+   if (!req.session.userEmail || !req.session.userEmail.email) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  const { plan } = req.body;
+  const email = req.session.userEmail.email;
+
+  if (!plan) {
+    return res.status(400).json({ success: false, message: "Missing plan" });
+  }
+
+  try {
+
+    const user = await userMong.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+   // Prevent downgrades (e.g., from Premium to Advance or Advance to Basic)
+    const planRank = { "Basic": 1, "Advance": 2, "Premium": 3 };
+
+    if (user.plan && planRank[plan] <= planRank[user.plan]) {
+      return res.status(409).json({ success: false, message: `You already have ${user.plan} plan or higher.` });
+    }
+
+
+    user.plan = plan;
+    await user.save();
+
+    return res.status(200).json({ success: true, message: "Plan successfully purchased", user });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+
+}
+
+// --------------------------- get user plan
+
+export const getuserPlan = async (req, res) => {
+  
+  try {
+    
+    if (!req.session.userEmail || !req.session.userEmail.email) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const user = await userMong.findOne({ email: req.session.userEmail.email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }   
+
+    return res.status(200).json({ success: true, plan: user.plan });
+
+
+  } catch (error) {
+    
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Server error" });
+
+  }
+
+}
+
+// --------------------------- manage user
+
+export const fetchUser=async (req,res) => {
+  
+  if (!req.session.userEmail) {
+    res.render('/');
+  }
+  else {
+    
+    const user = await userMong.find();
+    return res.render('manageUser', { user });
+  }
 
 }
 
@@ -197,47 +282,79 @@ export const checkSession = async (req, res) => {
 
 // ------------------------- post qr
 
-export const postqrcode=async (req,res) => {
-  
+export const postqrcode = async (req, res) => {
   const { url } = req.body;
 
   if (!url || url.trim() === "") {
-      return res.status(400).json({ error: 'URL is required' });
+    return res.status(400).json({ error: 'URL is required' });
   }
 
-  if (!req.session.userEmail) {
-              const today = new Date().toDateString();
-              if (!req.session.lastGeneratedDate || req.session.lastGeneratedDate !== today) {
-                  req.session.lastGeneratedDate = today;
-                  req.session.urlCount = 1;
-              } else {
-                  req.session.urlCount = (req.session.urlCount || 0) + 1;
-              }
-  
-              if (req.session.urlCount > 5) {
-                  return res.status(429).json({ message: 'Daily limit reached (5 QR codes). Please login to generate unlimited QR codes.' });
-              }
-          }
-  
+  let planType = "Guest";
+  let limit = 5;
+  let email = null;
+  let expiresAt = undefined;
 
+  // Check if user is logged in 
+  if (req.session.userEmail) {
+    const user = await userMong.findOne({ email: req.session.userEmail.email });
+    email = user.email;
+
+    // Advance or Premium = unlimited, no expiry
+    if (user && (user.plan === "Advance" || user.plan === "Premium")) {
+      const qrImage = await qrcode.toDataURL(url);
+      const newEntry = new qrMong({ url, qrImage, userEmail: email });
+      await newEntry.save();
+      return res.status(200).json({ qrImage, attemptsLeft: "Unlimited" });
+    }
+
+    // Basic user = limit + expire tonight
+    if (user.plan === "Basic") {
+      planType = "Basic";
+      expiresAt = new Date();
+      expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    }
+    
+  } else {
+    // Guest = limit + 5 days expiry
+    expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
+  }
+
+  // ---------- Limit logic (for Guest + Basic) ----------
+  const today = new Date().toDateString();
+  if (!req.session.lastQrGeneratedDate || req.session.lastQrGeneratedDate !== today) {
+    req.session.lastQrGeneratedDate = today;
+    req.session.qrCount = 1;
+  } else {
+    req.session.qrCount = (req.session.qrCount || 0) + 1;
+  }
+
+  if (req.session.qrCount > limit) {
+    return res.status(429).json({
+      message: `${planType} plan daily QR code limit reached (${limit}). Please upgrade for unlimited access.`,
+      attemptsLeft: 0
+    });
+  }
+
+  // ---------- QR Generation ----------
   try {
-
     const qrImage = await qrcode.toDataURL(url);
     const newEntry = new qrMong({
-      url, qrImage, userEmail: req.session.userEmail?.email || null
+      url,
+      qrImage,
+      userEmail: email,
+      ...(expiresAt && { expiresAt })
     });
 
     await newEntry.save();
-    return res.json({ qrImage });
 
+    const remaining = limit - req.session.qrCount;
+    return res.status(200).json({ qrImage, attemptsLeft: remaining });
   } catch (error) {
-    
-    console.log('Qr generation error', error);
+    console.log('QR generation error:', error);
     return res.status(500).json({ error: 'QR generation failed' });
-
   }
+};
 
-}
 
 // ------------------------ my qr
 
@@ -259,6 +376,8 @@ export const fetchqr = async (req, res) => {
   }
 
 }
+
+
 
 // -------------------------- logout user
 

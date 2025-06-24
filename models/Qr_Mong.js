@@ -4,11 +4,10 @@ const qrSchema = new mongoose.Schema({
     url: String,
     qrImage: String,
     userEmail: { type: String, default: null },
-    expiresAt: {
+   expiresAt: {
     type: Date,
-    default: () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // +5 days
-    index: { expires: 0 }, // TTL index (Mongo will auto-delete)
-  }
+    index: { expires: 0 } // 🔥 TTL index so MongoDB auto-deletes after "expiresAt"
+  } 
 }, { timestamps: true });
 
 
