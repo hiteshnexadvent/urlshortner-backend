@@ -11,6 +11,10 @@ const userSchema = new mongoose.Schema({
     default: "Basic",
   },
   subscribedAt: Date,
+  urlLogs: [{
+    date: String, // e.g., "2025-06-25"
+    count: { type: Number, default: 0 }
+  }]
 });
 
 const userMong = mongoose.model("users", userSchema);

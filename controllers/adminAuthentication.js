@@ -1,5 +1,8 @@
 import adminMong from '../models/Admin_Mong.js';
 import bcrypt from 'bcrypt';
+import userMong from '../models/User_Mong.js';
+import urlMong from '../models/Url_Mong.js';
+import qrMong from '../models/Qr_Mong.js';
 
 // ------------------------- admin Signup
 
@@ -139,6 +142,74 @@ export const postchangePass=async (req,res) => {
     }
     
 }
+
+// --------------------------- manage user
+
+export const fetchUser = async (req, res) => {
+    // console.log(req.session);
+  
+  if (!req.session.adminEmail) {
+    res.render('adminLogin');
+  }
+  else {
+    const user = await userMong.find();
+    return res.render('manageUser', { user });
+  }
+
+}
+
+// -------------------------- count qr and links
+
+export const countLinks = async (req, res) => {
+  if (!req.session.adminEmail) {
+    return res.render('adminLogin');
+  }
+
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const todayLinkCount = await urlMong.countDocuments({
+      createdAt: { $gte: today, $lt: tomorrow },
+    });
+
+    const todayQrCount = await qrMong.countDocuments({
+      createdAt: { $gte: today, $lt: tomorrow },
+    });
+
+    res.render('adminDash', {
+    todayLinkCount,
+    todayQrCount,
+    email: req.session.adminEmail.email,
+    name: req.session.adminEmail.name
+  });
+
+  } catch (error) {
+    console.error("Error in countLinks controller:", error);
+    res.status(500).send('Server Error');
+  }
+};
+
+
+// ------------------------- delete user
+
+export const deleteUser=async (req,res) => {
+    
+    try {
+        await userMong.findByIdAndDelete(req.params.id);
+        return res.redirect('/admin/manage-user');
+    }
+
+    catch (err) {
+        return res.send('Error Occured', err.message);
+        // console.log(err.message);
+    }
+
+}
+
 
 // -------------------------- admin Logout
 

@@ -1,16 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard</title>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background-color: #f0f2f5;
+      color: #333;
+    }
+
+    .main-content {
+      margin-left: 250px; /* Sidebar width */
+      padding: 100px 20px 40px; /* Top padding for fixed navbar */
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        margin-left: 0;
+        padding-top: 120px;
+      }
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .summary-section {
+      margin-top: 30px;
+      text-align: center;
+    }
+
+    .summary-cards {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 20px 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      min-width: 250px;
+      max-width: 320px;
+      width: 100%;
+      transition: transform 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+    }
+
+    .card h3 {
+      margin: 0;
+      font-size: 18px;
+      color: #555;
+    }
+
+    .card .count {
+      font-size: 36px;
+      font-weight: 600;
+      margin-top: 10px;
+      color: #007bff;
+    }
+  </style>
 </head>
 <body>
 
-    <%- include('header')  %>
-    <%- include('sidebar')  %>
+  <%- include('header') %>
+  <%- include('sidebar') %>
 
-    <h1>welcome</h1>
-    <p><%= email  %></p>
+  <div class="main-content">
+    <h2>Admin Dashboard</h2>
+
+    <div class="summary-section">
+      <h3>📊 Daily Usage Summary</h3>
+      <div class="summary-cards">
+        <div class="card">
+          <h3>Short Links Generated Today</h3>
+          <div class="count"><%= todayLinkCount %></div>
+        </div>
+        <div class="card">
+          <h3>QR Codes Generated Today</h3>
+          <div class="count"><%= todayQrCount %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

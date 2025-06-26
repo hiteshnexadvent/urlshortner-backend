@@ -7,7 +7,7 @@ const qrSchema = new mongoose.Schema({
    expiresAt: {
     type: Date,
     index: { expires: 0 } // 🔥 TTL index so MongoDB auto-deletes after "expiresAt"
-  } 
+    },
 }, { timestamps: true });
 
 

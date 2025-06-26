@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Blogs</title>
+    <title>Manage Users</title>
     <style>
         * {
             box-sizing: border-box;
@@ -77,6 +77,7 @@
         .delete-btn {
             background-color: #dc3545;
         }
+        
 
         .delete-btn:hover {
             background-color: #c82333;
@@ -90,6 +91,19 @@
     font-size: 16px;
     cursor: pointer;
     transition: background-color 0.3s;
+}
+.filter-btn{
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.filter-btn:hover {
+    background-color: #0056b3;
 }
 
 .download-btn:hover {
@@ -121,13 +135,22 @@
 </head>
 <body>
 
-    <%- include('Navbar') %>
+    <%- include('header') %>
 
     <div class="main-container">
-        <%- include('Sidebar') %>
+        <%- include('sidebar') %>
 
         <div class="content">
-            <h1>Manage Blogs</h1>
+           
+            <h1>Manage Users</h1>
+
+             <div style="text-align: center; margin-bottom: 20px;margin-left: 650px;">
+  <button onclick="filterUsers('all')" class="filter-btn">All</button>
+  <button onclick="filterUsers('Basic')" class="filter-btn">Basic</button>
+  <button onclick="filterUsers('Premium')" class="filter-btn">Premium</button>
+  <button onclick="filterUsers('Advance')" class="filter-btn">Advance</button>
+</div>
+
 
             <table>
                 <thead>
@@ -135,37 +158,36 @@
                         <th>Name</th>
                         <th>Email</th>
                         <th>Mobile</th>
-                        <th>City</th>
-                        <th>Message</th>
+                        <th>Plan</th>
                         <th>Action</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <% if (userr.length > 0) { %>
-                        <% userr.forEach(item => { %>
-                            <tr>
-                                <td><%= item.name %></td>
-                                <td><%= item.email %></td>
-                                <td><%= item.mobile %></td>
-                                <td><%= item.city %></td>
-                                <td><%= item.message %></td>
-                                <td class="action-buttons">
-                                    <a href="/admin/delete-user/<%= item._id %>" class="delete-btn" onclick="return confirm('Are you sure you want to delete this blog?')">Delete</a>
-                                </td>
-                            </tr>
-                        <% }) %>
-                    <% } else { %>
-                        <tr>
-                            <td colspan="3" style="text-align: center;">No blogs found</td>
-                        </tr>
-                    <% } %>
-                </tbody>
+                <tbody id="user-table-body">
+  <% if (user.length > 0) { %>
+    <% user.forEach(item => { %>
+      <tr>
+        <td><%= item.name %></td>
+        <td><%= item.email %></td>
+        <td><%= item.mobile %></td>
+        <td><%= item.plan %></td>
+        <td class="action-buttons">
+          <a href="/admin/delete-user/<%= item._id %>" class="delete-btn" onclick="return confirm('Are you sure to delete this User?')">Delete</a>
+        </td>
+      </tr>
+    <% }) %>
+  <% } else { %>
+    <tr>
+      <td colspan="5" style="text-align: center;">No Users found</td>
+    </tr>
+  <% } %>
+</tbody>
+
                 
             </table>
 
             <!-- Hidden JSON data -->
 <script type="application/json" id="userr-data">
-  <%- JSON.stringify(userr || []) %>
+  <%- JSON.stringify(user || []) %>
 </script>
 
             
@@ -177,31 +199,54 @@
     </div>
 
  <script>
-  function downloadCSV() {
-    const rawData = document.getElementById('userr-data').textContent;
-    let data;
+  // Global variable to hold filtered users
+  let allUsers = JSON.parse(document.getElementById('userr-data').textContent);
+  let filteredUsers = [...allUsers]; 
 
-    try {
-      data = JSON.parse(rawData);
-    } catch (e) {
-      alert("Failed to parse data.");
+  function filterUsers(plan) {
+    const tbody = document.getElementById('user-table-body');
+    tbody.innerHTML = '';
+
+    filteredUsers = plan === 'all' ? allUsers : allUsers.filter(user => user.plan === plan);
+
+    if (filteredUsers.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center;">No Users found</td>
+        </tr>
+      `;
       return;
     }
 
-    if (!data.length) {
+    filteredUsers.forEach(user => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${user.name || ''}</td>
+        <td>${user.email || ''}</td>
+        <td>${user.mobile || ''}</td>
+        <td>${user.plan || ''}</td>
+        <td class="action-buttons">
+          <a href="/admin/delete-user/${user._id}" class="delete-btn" onclick="return confirm('Are you sure you want to delete this blog?')">Delete</a>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function downloadCSV() {
+    if (!filteredUsers.length) {
       alert("No data to download");
       return;
     }
 
-    let csv = "Name,Email,Mobile,City,Message\n";
+    let csv = "Name,Email,Mobile,Plan\n";
 
-    data.forEach(item => {
+    filteredUsers.forEach(item => {
       const name = (item.name || '').replace(/"/g, '""');
       const email = (item.email || '').replace(/"/g, '""');
-      const mobile = item.mobile ? `="${item.mobile}"` : '';  
-      const city = (item.city || '').replace(/"/g, '""');
-      const message = (item.message || '').replace(/"/g, '""');
-      csv += `"${name}","${email}","${mobile}","${city}","${message}"\n`;
+      const mobile = item.mobile ? `="${item.mobile}"` : '';
+      const plan = (item.plan || '').replace(/"/g, '""');
+      csv += `"${name}","${email}","${mobile}","${plan}"\n`;
     });
 
     const blob = new Blob([csv], { type: "text/csv" });
