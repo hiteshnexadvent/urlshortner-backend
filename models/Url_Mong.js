@@ -5,6 +5,7 @@ const urlSchema = new mongoose.Schema({
   shortUrl: String,
   clicks: { type: Number, default: 0 },
   userEmail: { type: String, default: null },
+  passwordHash: String,
   expiresAt: {
     type: Date,
     default: undefined,

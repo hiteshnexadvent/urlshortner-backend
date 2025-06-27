@@ -82,27 +82,52 @@ export const loginUser=async (req,res) => {
       return res.status(404).json({ message: 'User not exists' });       
     }
 
-        const matchPass = await bcrypt.compare(pass, userr.pass);
-        
-        if (matchPass) {
-            req.session.userEmail = {
-                name: userr.name,
-                email: userr.email
-            };
+        // Check if account is temporarily blocked
+    if (userr.loginBlockedUntil && userr.loginBlockedUntil > new Date()) {
+      const minutesLeft = Math.ceil((userr.loginBlockedUntil - new Date()) / (60 * 1000));
+      return res.status(403).json({ message: `Account temporarily locked. Try again in ${minutesLeft} minutes.` });
+    }
 
-            return res.json({ success: true, message: 'Login successfull', userId: { name: userr.name, email: userr.email } });
-            
-        }
-        else {
-            return res.status(401).json({ message: 'Incorrect Password' });
-        }
+    const matchPass = await bcrypt.compare(pass, userr.pass);
+
+    if (matchPass) {
+      // Reset failed attempts on success
+      userr.failedLoginAttempts = 0;
+      userr.loginBlockedUntil = null;
+      await userr.save();
+
+      req.session.userEmail = {
+        name: userr.name,
+        email: userr.email
+      };
+
+      return res.json({ success: true, message: 'Login successful', userId: { name: userr.name, email: userr.email } });
+    } else {
+      // Increase failed attempts
+     userr.failedLoginAttempts = (userr.failedLoginAttempts || 0) + 1;
+
+let attemptsLeft = 3 - userr.failedLoginAttempts;
+
+// Lock account after 3 failed attempts
+if (userr.failedLoginAttempts >= 3) {
+  userr.loginBlockedUntil = new Date(Date.now() + 1 * 60 * 1000);
+  attemptsLeft = 0;
+}
+
+await userr.save();
+
+if (attemptsLeft > 0) {
+  return res.status(401).json({ message: `Incorrect password. ${attemptsLeft} attempt(s) left.` });
+} else {
+  return res.status(403).json({ message: 'Account temporarily locked for 1 minute due to multiple failed login attempts.' });
+}
 
     }
-    catch (err) {
-      // res.json(err.message);
-      return res.status(500).json({ message: "Internal server error" });
 
-    }
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 
 }
 
@@ -270,122 +295,10 @@ export const checkSession = async (req, res) => {
   }
 };
 
-
-// ------------------------- post qr
-
-// export const postqrcode = async (req, res) => {
-//   const { url } = req.body;
-
-//   if (!url || url.trim() === "") {
-//     return res.status(400).json({ error: 'URL is required' });
-//   }
-
-//   let planType = "Guest";
-//   let limit = 5;
-//   let email = null;
-//   let expiresAt = undefined;
-
-//   if (req.session.userEmail) {
-//     const user = await userMong.findOne({ email: req.session.userEmail.email });
-//     email = user.email;
-
-//     // ✅ Premium user – generate QR with logo
-//     if (user && user.plan === "Premium") {
-//       try {
-//         const qrBuffer = await qrcode.toBuffer(url, { errorCorrectionLevel: 'H', type: 'png' });
-//         const logoPath = path.join(__dirname, '../assets/logo.png');
-//         const logoBuffer = fs.readFileSync(logoPath);
-
-//         const logoResized = await sharp(logoBuffer)
-//           .resize(80)
-//           .png()
-//           .toBuffer();
-
-//         const qrWithLogo = await sharp(qrBuffer)
-//           .composite([{ input: logoResized, gravity: 'centre' }])
-//           .png()
-//           .toBuffer();
-
-//         const qrImageWithLogo = `data:image/png;base64,${qrWithLogo.toString('base64')}`;
-
-//         const newEntry = new qrMong({ url, qrImage: qrImageWithLogo, userEmail: email });
-//         await newEntry.save();
-
-//         return res.status(200).json({ qrImage: qrImageWithLogo, attemptsLeft: Infinity });
-//       } catch (error) {
-//         console.error('QR with logo error:', error);
-//         return res.status(500).json({ error: 'QR generation with logo failed' });
-//       }
-//     }
-
-//     // ✅ Advance user – generate normal QR without logo, but no limit
-//     if (user.plan === "Advance") {
-//       try {
-//         const qrImage = await qrcode.toDataURL(url);
-//         const newEntry = new qrMong({ url, qrImage, userEmail: email });
-//         await newEntry.save();
-
-//         return res.status(200).json({ qrImage, attemptsLeft: Infinity });
-//       } catch (error) {
-//         console.error('Advance QR error:', error);
-//         return res.status(500).json({ error: 'QR generation failed' });
-//       }
-//     }
-
-//     // ✅ Basic user – normal QR with limit
-//     if (user.plan === "Basic") {
-//       planType = "Basic";
-//       expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
-//     }
-
-//   } else {
-//     // Guest
-//     expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
-//   }
-
-//   // ✅ Basic / Guest: apply limit
-//   const today = new Date().toDateString();
-//   if (!req.session.lastQrGeneratedDate || req.session.lastQrGeneratedDate !== today) {
-//     req.session.lastQrGeneratedDate = today;
-//     req.session.qrCount = 1;
-//   } else {
-//     req.session.qrCount = (req.session.qrCount || 0) + 1;
-//   }
-
-//   if (req.session.qrCount > limit) {
-//     return res.status(429).json({
-//       message: `${planType} plan daily QR code limit reached (${limit}). Please upgrade for unlimited access.`,
-//       attemptsLeft: 0
-//     });
-//   }
-
-//   // ✅ Generate and store normal QR (Basic or Guest)
-//   try {
-//     const qrImage = await qrcode.toDataURL(url);
-//     const newEntry = new qrMong({
-//       url,
-//       qrImage,
-//       userEmail: email,
-//       ...(expiresAt && { expiresAt })
-//     });
-
-//     await newEntry.save();
-
-//     const remaining = limit - req.session.qrCount;
-//     return res.status(200).json({ qrImage, attemptsLeft: remaining });
-//   } catch (error) {
-//     console.log('QR generation error:', error);
-//     return res.status(500).json({ error: 'QR generation failed' });
-//   }
-// };
-
-
-
-
 // ------------------------- post qr
 
 export const postqrcode = async (req, res) => {
-  const { url } = req.body;
+  const { url, withLogo = false } = req.body;
 
   if (!url || url.trim() === "") {
     return res.status(400).json({ error: 'URL is required' });
@@ -396,32 +309,75 @@ export const postqrcode = async (req, res) => {
   let email = null;
   let expiresAt = undefined;
 
-  // Check if user is logged in 
   if (req.session.userEmail) {
     const user = await userMong.findOne({ email: req.session.userEmail.email });
     email = user.email;
 
-    // Advance or Premium = unlimited, no expiry
-    if (user && (user.plan === "Advance" || user.plan === "Premium")) {
-      const qrImage = await qrcode.toDataURL(url);
-      const newEntry = new qrMong({ url, qrImage, userEmail: email });
-      await newEntry.save();
-      return res.status(200).json({ qrImage, attemptsLeft: "Unlimited" });
+    // ✅ Premium user
+    if (user && user.plan === "Premium") {
+      try {
+        if (withLogo) {
+          // ✅ Generate QR with logo
+          const qrBuffer = await qrcode.toBuffer(url, { errorCorrectionLevel: 'H', type: 'png' });
+          const logoPath = path.join(__dirname, '../assets/logo.png');
+          const logoBuffer = fs.readFileSync(logoPath);
+
+          const logoResized = await sharp(logoBuffer)
+            .resize(60) // Smaller logo
+            .png()
+            .toBuffer();
+
+          const qrWithLogo = await sharp(qrBuffer)
+            .composite([{ input: logoResized, gravity: 'centre' }])
+            .png()
+            .toBuffer();
+
+          const qrImageWithLogo = `data:image/png;base64,${qrWithLogo.toString('base64')}`;
+
+          const newEntry = new qrMong({ url, qrImage: qrImageWithLogo, userEmail: email });
+          await newEntry.save();
+
+          return res.status(200).json({ qrImage: qrImageWithLogo, attemptsLeft: Infinity });
+        } else {
+          // ✅ Generate normal QR
+          const qrImage = await qrcode.toDataURL(url);
+          const newEntry = new qrMong({ url, qrImage, userEmail: email });
+          await newEntry.save();
+
+          return res.status(200).json({ qrImage, attemptsLeft: Infinity });
+        }
+      } catch (error) {
+        console.error('Premium QR generation error:', error);
+        return res.status(500).json({ error: 'QR generation failed' });
+      }
     }
 
-    // Basic user = limit + expire tonight
+    // ✅ Advance user – unlimited QR without logo
+    if (user.plan === "Advance") {
+      try {
+        const qrImage = await qrcode.toDataURL(url);
+        const newEntry = new qrMong({ url, qrImage, userEmail: email });
+        await newEntry.save();
+
+        return res.status(200).json({ qrImage, attemptsLeft: Infinity });
+      } catch (error) {
+        console.error('Advance QR error:', error);
+        return res.status(500).json({ error: 'QR generation failed' });
+      }
+    }
+
+    // ✅ Basic user
     if (user.plan === "Basic") {
       planType = "Basic";
-      expiresAt = new Date();
       expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
     }
-    
+
   } else {
-    // Guest = limit + 5 days expiry
-    expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
+    // Guest user
+    expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
   }
 
-  // Limit logic (for Guest + Basic)
+  // ✅ Limit check for Guest/Basic
   const today = new Date().toDateString();
   if (!req.session.lastQrGeneratedDate || req.session.lastQrGeneratedDate !== today) {
     req.session.lastQrGeneratedDate = today;
@@ -437,7 +393,7 @@ export const postqrcode = async (req, res) => {
     });
   }
 
-  // QR Generation
+  // ✅ Generate QR for Guest / Basic
   try {
     const qrImage = await qrcode.toDataURL(url);
     const newEntry = new qrMong({
@@ -456,9 +412,6 @@ export const postqrcode = async (req, res) => {
     return res.status(500).json({ error: 'QR generation failed' });
   }
 };
-
-
-
 
 
 // ------------------------ my qr

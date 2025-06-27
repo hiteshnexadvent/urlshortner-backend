@@ -10,6 +10,14 @@ const userSchema = new mongoose.Schema({
     enum: ["Basic", "Advance", "Premium"],
     default: "Basic",
   },
+  failedLoginAttempts: {
+  type: Number,
+  default: 0
+},
+loginBlockedUntil: {
+  type: Date,
+  default: null
+},
   subscribedAt: Date,
   urlLogs: [{
     date: String, // e.g., "2025-06-25"
