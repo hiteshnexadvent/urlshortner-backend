@@ -5,8 +5,8 @@ const adminSchema = new mongoose.Schema({
   email: { type: String, required: true },
   pass: { type: String, required: true },
   mobile: { type: String, required: true },
-//   otp: String,
-//   otpExpires: Date,
+  otp: String,
+  otpExpires: Date,
   role: {
     type: String,
     default: "admin",

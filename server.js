@@ -16,7 +16,8 @@ import userMong from './models/User_Mong.js';
 import bcrypt from 'bcrypt';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
+import checkPlanExpiry from "./middlewares/checkPlanExpiry.js";
+import upload from './middlewares/multer.js';
 
 dotenv.config();
 
@@ -36,36 +37,36 @@ app.use(cors({
 
 // --------------------- for live
 
-app.set('trust proxy', 1)
-
-app.use(
-    session({
-      secret: "nexadvent123", 
-      resave: false,
-      saveUninitialized: false,
-      cookie: { 
-        sameSite: 'none',
-        secure: true,
-        maxAge: 24 * 60 * 60 * 1000,
-        httpOnly: true
-      }, 
-    })
-);
-  
-// ------------------- for local dev
+// app.set('trust proxy', 1)
 
 // app.use(
 //     session({
 //       secret: "nexadvent123", 
 //       resave: false,
 //       saveUninitialized: false,
-//       cookie: {
-//   sameSite: 'lax',
-//   secure: false,
-//   httpOnly: true
-//         },      
+//       cookie: { 
+//         sameSite: 'none',
+//         secure: true,
+//         maxAge: 24 * 60 * 60 * 1000,
+//         httpOnly: true
+//       }, 
 //     })
 // );
+  
+// ------------------- for local dev
+
+app.use(
+    session({
+      secret: "nexadvent123", 
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+  sameSite: 'lax',
+  secure: false,
+  httpOnly: true
+        },      
+    })
+);
 
 
 
@@ -74,6 +75,12 @@ app.use(
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('MongoDb Connected'))
     .catch(() => console.log('Error Occured'))
+
+
+
+// 🔐 Apply middleware globally to all user-related routes
+
+app.use(checkPlanExpiry);
 
 
 // ------------------------------ shorten url 
@@ -252,7 +259,7 @@ app.get('/logout', logoutUser);
 
 app.get('/check-session', checkSession);
 
-app.post('/qrscan', postqrcode);
+app.post('/qrscan', upload.single('logoImage'), postqrcode);
 
 app.get('/fetchqr', fetchqr);
 
@@ -268,7 +275,8 @@ app.post('/choose-plan', choosePlan);
 
 app.get('/get-user-plan', getuserPlan);
 
-app.get('/getUserRole',userInfo );
+app.get('/getUserRole', userInfo);
+
 
 
 

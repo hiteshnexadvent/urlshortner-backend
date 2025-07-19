@@ -17,7 +17,10 @@ const userSchema = new mongoose.Schema({
 loginBlockedUntil: {
   type: Date,
   default: null
-},
+  },
+  planStartDate: {
+    type: Date
+  },
   subscribedAt: Date,
   urlLogs: [{
     date: String, // e.g., "2025-06-25"

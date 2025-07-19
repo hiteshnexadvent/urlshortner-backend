@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import userMong from '../models/User_Mong.js';
 import urlMong from '../models/Url_Mong.js';
 import qrMong from '../models/Qr_Mong.js';
+import adminSendOtp from '../utils/adminForgetOtp.js';
 
 // ------------------------- admin Signup
 
@@ -209,6 +210,113 @@ export const deleteUser=async (req,res) => {
     }
 
 }
+
+// -------------------------- admin forget password
+
+export const getadminForgetPass = (req, res) => {
+    res.render('forgetPassword');
+}
+
+export const adminForgetPass=async (req,res) => {
+    
+    try {
+            
+        const { email } = req.body;
+    
+            const existadmin = await adminMong.findOne({ email });
+    
+            if (!existadmin) {
+                return res.send('<script>alert("Admin not exist"); window.history.back();</script>');
+            }
+    
+        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+        const otpExpires = Date.now() + 5 * 60 * 1000;
+    
+      existadmin.otp = otp;
+      existadmin.otpExpires = otpExpires;
+      await existadmin.save();
+    
+      await adminSendOtp(email, otp); 
+    
+    return res.render('verifyOtp', { email });
+    
+        }
+        catch (err) {
+            return res.send('err');
+        }
+
+}
+
+// -------------------------- verify otp
+
+export const verifyAdminOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const admin = await adminMong.findOne({ email });
+
+    if (!admin || admin.otp?.toString() !== otp || admin.otpExpires < Date.now()) {
+      return res.send('<script>alert("Invalid or expired OTP"); window.history.back();</script>');
+    }
+
+    return res.render("resetAdminPass", { email });
+
+  } catch (err) {
+    console.error("OTP Verify Error:", err);
+    return res.send('<script>alert("Something went wrong"); window.history.back();</script>');
+  }
+};
+
+
+
+// -------------------------- resend otp
+
+export const resendAdminOtp = async (req, res) => {
+  const { email } = req.body;
+
+  const admin = await adminMong.findOne({ email });
+
+  if (!admin) {
+    return res.send('<script>alert("Admin not found"); window.history.back();</script>');
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpires = Date.now() + 5 * 60 * 1000;
+
+  admin.otp = otp;
+  admin.otpExpires = otpExpires;
+  await admin.save();
+
+  await adminSendOtp(email, otp);
+
+  return res.render("verifyOtp", { email });
+
+};
+
+// -------------------------- reset password
+
+export const resetAdminPassword = async (req, res) => {
+  const { email, password, confirmPassword } = req.body;
+
+  if (password !== confirmPassword) {
+    return res.send('<script>alert("Passwords do not match"); window.history.back();</script>');
+  }
+
+  const admin = await adminMong.findOne({ email });
+
+  if (!admin) {
+    return res.send('<script>alert("Admin not found"); window.location="/admin/forget";</script>');
+  }
+
+  const hashedPass = await bcrypt.hash(password, 10);
+  admin.pass = hashedPass;
+  admin.otp = undefined;
+  admin.otpExpires = undefined;
+
+  await admin.save();
+
+  return res.send('<script>alert("Password changed successfully"); window.location="/";</script>');
+};
+
 
 
 // -------------------------- admin Logout

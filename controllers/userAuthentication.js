@@ -5,17 +5,7 @@ import bcrypt from 'bcrypt';
 import qrcode from 'qrcode';
 import { validationResult } from 'express-validator';
 import sendMail from '../utils/sendMailOtp.js';
-import path from 'path';
 import sharp from 'sharp';
-import fs from 'fs';
-
-
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-
 
 // ------------------------ user register
 
@@ -85,7 +75,7 @@ export const loginUser=async (req,res) => {
         // Check if account is temporarily blocked
     if (userr.loginBlockedUntil && userr.loginBlockedUntil > new Date()) {
       const minutesLeft = Math.ceil((userr.loginBlockedUntil - new Date()) / (60 * 1000));
-      return res.status(403).json({ message: `Account temporarily locked. Try again in ${minutesLeft} minutes.` });
+      return res.status(403).json({ message: `Account temporarily locked. Try again in ${minutesLeft} minutes.(24hrs)` });
     }
 
     const matchPass = await bcrypt.compare(pass, userr.pass);
@@ -110,16 +100,18 @@ let attemptsLeft = 3 - userr.failedLoginAttempts;
 
 // Lock account after 3 failed attempts
 if (userr.failedLoginAttempts >= 3) {
-  userr.loginBlockedUntil = new Date(Date.now() + 1 * 60 * 1000);
+  // Block for 24 hours
+  userr.loginBlockedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
   attemptsLeft = 0;
 }
+
 
 await userr.save();
 
 if (attemptsLeft > 0) {
   return res.status(401).json({ message: `Incorrect password. ${attemptsLeft} attempt(s) left.` });
 } else {
-  return res.status(403).json({ message: 'Account temporarily locked for 1 minute due to multiple failed login attempts.' });
+  return res.status(403).json({ message: 'Account temporarily locked for 24 hours due to multiple failed login attempts.' });
 }
 
     }
@@ -163,7 +155,9 @@ export const choosePlan = async (req, res) => {
 
 
     user.plan = plan;
-    await user.save();
+user.planStartDate = new Date(); // Save the current time
+await user.save();
+
 
     return res.status(200).json({ success: true, message: "Plan successfully purchased", user });
 
@@ -313,44 +307,56 @@ export const postqrcode = async (req, res) => {
     const user = await userMong.findOne({ email: req.session.userEmail.email });
     email = user.email;
 
-    // ✅ Premium user
-    if (user && user.plan === "Premium") {
-      try {
-        if (withLogo) {
-          // ✅ Generate QR with logo
-          const qrBuffer = await qrcode.toBuffer(url, { errorCorrectionLevel: 'H', type: 'png' });
-          const logoPath = path.join(__dirname, '../assets/logo.png');
-          const logoBuffer = fs.readFileSync(logoPath);
+if (user && user.plan === "Premium") {
+  try {
+    const colorDark = req.body.colorDark || "#000000";
+    const colorLight = req.body.colorLight || "#ffffff";
 
-          const logoResized = await sharp(logoBuffer)
-            .resize(60) // Smaller logo
-            .png()
-            .toBuffer();
-
-          const qrWithLogo = await sharp(qrBuffer)
-            .composite([{ input: logoResized, gravity: 'centre' }])
-            .png()
-            .toBuffer();
-
-          const qrImageWithLogo = `data:image/png;base64,${qrWithLogo.toString('base64')}`;
-
-          const newEntry = new qrMong({ url, qrImage: qrImageWithLogo, userEmail: email });
-          await newEntry.save();
-
-          return res.status(200).json({ qrImage: qrImageWithLogo, attemptsLeft: Infinity });
-        } else {
-          // ✅ Generate normal QR
-          const qrImage = await qrcode.toDataURL(url);
-          const newEntry = new qrMong({ url, qrImage, userEmail: email });
-          await newEntry.save();
-
-          return res.status(200).json({ qrImage, attemptsLeft: Infinity });
-        }
-      } catch (error) {
-        console.error('Premium QR generation error:', error);
-        return res.status(500).json({ error: 'QR generation failed' });
+    const qrBuffer = await qrcode.toBuffer(url, {
+      errorCorrectionLevel: 'H',
+      type: 'png',
+      width: 300,
+      color: {
+        dark: colorDark,
+        light: colorLight,
       }
+    });
+
+    let finalQRBuffer = qrBuffer;
+
+    if (req.file) {
+      const logoBuffer = req.file.buffer;
+
+      const logoResized = await sharp(logoBuffer)
+        .resize(50, 50)
+        .extend({
+          top: 10,
+          bottom: 10,
+          left: 10,
+          right: 10,
+          background: { r: 255, g: 255, b: 255, alpha: 1 }
+        })
+        .png()
+        .toBuffer();
+
+      finalQRBuffer = await sharp(qrBuffer)
+        .composite([{ input: logoResized, gravity: 'centre' }])
+        .png()
+        .toBuffer();
     }
+
+    const qrImage = `data:image/png;base64,${finalQRBuffer.toString('base64')}`;
+    const newEntry = new qrMong({ url, qrImage, userEmail: email });
+    await newEntry.save();
+
+    return res.status(200).json({ qrImage, attemptsLeft: Infinity });
+  } catch (error) {
+    console.error('Premium QR generation error:', error);
+    return res.status(500).json({ error: 'QR generation failed' });
+  }
+}
+
+
 
     // ✅ Advance user – unlimited QR without logo
     if (user.plan === "Advance") {
@@ -438,6 +444,7 @@ export const fetchqr = async (req, res) => {
 // ----------------------- user me for qr filter plans
 
 export const userInfo = async (req, res) => {
+    console.log("🧠 SESSION:", req.session); // Add this
 
   if (!req.session.userEmail) {
     return res.status(401).json({ isLoggedIn: false });

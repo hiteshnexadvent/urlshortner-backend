@@ -1,5 +1,5 @@
 import express from 'express';
-import {  adminLogin, adminLogout, adminSignup, countLinks, deleteUser, fetchUser, getadminSignup, getchangePass, postchangePass } from '../controllers/adminAuthentication.js';
+import {  adminForgetPass, adminLogin, adminLogout, adminSignup, countLinks, deleteUser, fetchUser, getadminForgetPass, getadminSignup, getchangePass, postchangePass, resendAdminOtp, resetAdminPassword, verifyAdminOtp } from '../controllers/adminAuthentication.js';
 const router = express.Router();
 
 
@@ -14,6 +14,11 @@ router.get('/adminDash', countLinks);
 router.get('/signout', adminLogout);
 router.get('/delete-user/:id', deleteUser);
 
+router.get('/forget-password', getadminForgetPass);
+router.post('/forget-password', adminForgetPass);
+router.post('/verify-otp', verifyAdminOtp);
+router.post('/resend-otp', resendAdminOtp);
+router.post('/reset-password', resetAdminPassword);
 
 
 
