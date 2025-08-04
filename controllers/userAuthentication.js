@@ -155,8 +155,8 @@ export const choosePlan = async (req, res) => {
 
 
     user.plan = plan;
-user.planStartDate = new Date(); // Save the current time
-await user.save();
+    user.planStartDate = new Date(); // Save the current time
+    await user.save();
 
 
     return res.status(200).json({ success: true, message: "Plan successfully purchased", user });

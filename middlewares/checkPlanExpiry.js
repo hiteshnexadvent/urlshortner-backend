@@ -1,21 +1,20 @@
 import userMong from "../models/User_Mong.js";
 
 const checkPlanExpiry = async (req, res, next) => {
-    if (!req.session.userEmail || !req.session.userEmail.email) {
+  if (!req.session.userEmail || !req.session.userEmail.email) {
     return next();
   }
 
   try {
     const email = req.session.userEmail.email;
-      const user = await userMong.findOne({ email: req.session.userEmail.email });
-      console.log(user);
+    const user = await userMong.findOne({ email });
 
     if (user && user.plan !== "Basic" && user.planStartDate) {
       const now = new Date();
       const planDate = new Date(user.planStartDate);
-      const diffMinutes = Math.floor((now - planDate) / (1000 * 60)); 
+      const diffDays = Math.floor((now - planDate) / (1000 * 60 * 60 * 24)); 
 
-      if (diffMinutes >= 1) {  // ⏱️ Expire after 1 minute
+      if (diffDays >= 30) {
         user.plan = "Basic";
         user.planStartDate = null;
         await user.save();
