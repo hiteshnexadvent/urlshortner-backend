@@ -5,7 +5,19 @@ import bcrypt from 'bcrypt';
 import qrcode from 'qrcode';
 import { validationResult } from 'express-validator';
 import sendMail from '../utils/sendMailOtp.js';
+import thankMail from '../utils/thankMail.js';
 import sharp from 'sharp';
+import Razorpay from 'razorpay';
+import dotenv from 'dotenv';
+import crypto from "crypto";
+dotenv.config();
+
+
+const razorPay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+})
+
 
 // ------------------------ user register
 
@@ -127,46 +139,60 @@ if (attemptsLeft > 0) {
 
 export const choosePlan = async (req, res) => {
 
-   if (!req.session.userEmail || !req.session.userEmail.email) {
+  if (!req.session.userEmail || !req.session.userEmail.email) {
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 
-  const { plan } = req.body;
+  const { plan, paymentId, orderId, signature } = req.body;
   const email = req.session.userEmail.email;
 
   if (!plan) {
     return res.status(400).json({ success: false, message: "Missing plan" });
   }
 
-  try {
+  // ✅ If payment-related fields exist, verify the payment
+  if (paymentId && orderId && signature) {
+    const generated_signature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(orderId + "|" + paymentId)
+      .digest('hex');
 
+    if (generated_signature !== signature) {
+      return res.status(400).json({ success: false, message: "Invalid payment signature." });
+    }
+  }
+
+  try {
     const user = await userMong.findOne({ email });
 
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-   // Prevent downgrades (e.g., from Premium to Advance or Advance to Basic)
+    // ✅ Prevent plan downgrade
     const planRank = { "Basic": 1, "Advance": 2, "Premium": 3 };
 
-    if (user.plan && planRank[plan] <= planRank[user.plan]) {
+    if (user.plan && planRank[plan] < planRank[user.plan]) {
       return res.status(409).json({ success: false, message: `You already have ${user.plan} plan or higher.` });
     }
 
-
     user.plan = plan;
-    user.planStartDate = new Date(); // Save the current time
+    user.planStartDate = new Date();
     await user.save();
 
+    try {
+      await thankMail(user.name || "User", user.email, plan);
+    } catch (err) {
+      console.error("Email sending failed:", err);
+    }
 
-    return res.status(200).json({ success: true, message: "Plan successfully purchased", user });
+    return res.status(200).json({ success: true, message: "Plan purchased successfully", user });
 
   } catch (error) {
-    console.error(error);
+    console.error("Plan purchase error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
-
-}
+};
 
 // --------------------------- get user plan
 
@@ -444,7 +470,6 @@ export const fetchqr = async (req, res) => {
 // ----------------------- user me for qr filter plans
 
 export const userInfo = async (req, res) => {
-    console.log("🧠 SESSION:", req.session); // Add this
 
   if (!req.session.userEmail) {
     return res.status(401).json({ isLoggedIn: false });
@@ -460,11 +485,33 @@ export const userInfo = async (req, res) => {
 };
 
 
+// -------------------------- razorpay
+
+export const payment = async (req, res) => {
+
+  const { amount } = req.body;
+
+  const options = {
+    amount: amount,
+    currency: "INR",
+    receipt: "receipt_order_" + Math.random(),
+  }
+
+  try {
+    const order = await razorPay.orders.create(options);
+    return res.json(order);
+  }
+  catch (err) {
+    res.status(500).send("Error making payment");
+  }
+
+}
+
 // -------------------------- logout user
 
 export const logoutUser = async (req, res) => {
   try {
-    delete req.session.userEmail; // ✅ only delete user session
+    delete req.session.userEmail; 
     return res.status(200).json({ success: true, message: 'Logout successful' });
   } catch (err) {
     console.log(err.message);

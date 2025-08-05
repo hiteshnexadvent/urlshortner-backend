@@ -7,7 +7,7 @@ import session from 'express-session';
 import dotenv from 'dotenv';
 import path from 'path';
 import urlMong from './models/Url_Mong.js';
-import { checkSession, choosePlan, fetchqr, getuserPlan, loginUser, logoutUser, postqrcode, registerUser, resendOtp, resetPassword, sendMaill, userInfo, verifyOtp } from './controllers/userAuthentication.js';
+import { checkSession, choosePlan, fetchqr, getuserPlan, loginUser, logoutUser, payment, postqrcode, registerUser, resendOtp, resetPassword, sendMaill, userInfo, verifyOtp } from './controllers/userAuthentication.js';
 import { registeredvalidator } from './validation/validation.js';
 import admin from './routes/admin.js';
 import guestMong from './models/Guest_Mong.js';
@@ -37,36 +37,36 @@ app.use(cors({
 
 // --------------------- for live
 
-app.set('trust proxy', 1)
-
-app.use(
-    session({
-      secret: "nexadvent123", 
-      resave: false,
-      saveUninitialized: false,
-      cookie: { 
-        sameSite: 'none',
-        secure: true,
-        maxAge: 24 * 60 * 60 * 1000,
-        httpOnly: true
-      }, 
-    })
-);
-  
-// ------------------- for local dev
+// app.set('trust proxy', 1)
 
 // app.use(
 //     session({
 //       secret: "nexadvent123", 
 //       resave: false,
 //       saveUninitialized: false,
-//       cookie: {
-//   sameSite: 'lax',
-//   secure: false,
-//   httpOnly: true
-//         },      
+//       cookie: { 
+//         sameSite: 'none',
+//         secure: true,
+//         maxAge: 24 * 60 * 60 * 1000,
+//         httpOnly: true
+//       }, 
 //     })
 // );
+  
+// ------------------- for local dev
+
+app.use(
+    session({
+      secret: "nexadvent123", 
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+  sameSite: 'lax',
+  secure: false,
+  httpOnly: true
+        },      
+    })
+);
 
 
 
@@ -141,9 +141,9 @@ app.post('/api/short', async (req, res) => {
 
         // ✅ Premium user with optional password
         if (user.plan === "Premium") {
-  if (password) {
-    passwordHash = await bcrypt.hash(password, 10);
-  }
+        if (password) {
+          passwordHash = await bcrypt.hash(password, 10);
+        }
 }
       }
     }
@@ -280,6 +280,8 @@ app.post('/choose-plan', choosePlan);
 app.get('/get-user-plan', getuserPlan);
 
 app.get('/getUserRole', userInfo);
+
+app.post('/payment', payment);
 
 
 

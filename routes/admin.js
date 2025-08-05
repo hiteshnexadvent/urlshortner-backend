@@ -1,5 +1,6 @@
 import express from 'express';
 import {  adminForgetPass, adminLogin, adminLogout, adminSignup, countLinks, deleteUser, fetchUser, getadminForgetPass, getadminSignup, getchangePass, postchangePass, resendAdminOtp, resetAdminPassword, verifyAdminOtp } from '../controllers/adminAuthentication.js';
+import { payment } from '../controllers/userAuthentication.js';
 const router = express.Router();
 
 
@@ -19,8 +20,6 @@ router.post('/forget-password', adminForgetPass);
 router.post('/verify-otp', verifyAdminOtp);
 router.post('/resend-otp', resendAdminOtp);
 router.post('/reset-password', resetAdminPassword);
-
-
 
 
 export default router;
