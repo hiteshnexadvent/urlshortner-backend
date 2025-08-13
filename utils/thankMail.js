@@ -12,7 +12,7 @@ const thankMail = async (name,email,plan, otp) => {
   const mailOptions = {
     from: `Link Crisp ${process.env.EMAIL_USER}`,
     to: email,
-    subject: "Your Forget Password Otp",
+    subject: "Thanks for subscribing!!",
     html: `
         <h2>Hello ${name},</h2>
         <p>Thank you for upgrading to the <b>${plan}</b> plan! 🎉</p>
